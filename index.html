@@ -1,0 +1,45 @@
+<html>
+
+  <style type="text/css">
+
+    .chart {
+    display: block;
+    margin: auto;
+    margin-top: 60px;
+    font-size: 11px;
+    }
+
+    rect {
+    stroke: #eee;
+    fill: #aaa;
+    fill-opacity: .8;
+    }
+
+    rect.parent {
+    cursor: pointer;
+    fill: steelblue;
+    }
+
+    text {
+    pointer-events: none;
+    }
+
+  </style>
+
+<body>
+</body>
+
+<script src="bower_components/underscore/underscore.js"></script>
+<script src="bower_components/d3/d3.min.js"></script>
+<script src="sample_data/budget.json"></script>
+<script src="dist/zopamico.js"></script>
+
+<script>
+console.log("Hello World!");
+z = new Zopamico(window.data, ["l1","l2","l3","l4"],"value");
+console.log(z.tree);
+console.log(z.nodes);
+z.render();
+</script>
+
+</html>

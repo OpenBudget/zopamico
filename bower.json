@@ -1,0 +1,10 @@
+{
+  "name": "zopamico",
+  "description": "Zoomable Partition Miller Columns Visualization",
+  "main": "dist/zopamico.js",
+  "version": "0.0.0",
+  "dependencies": {
+    "underscore": "~1.5.2",
+    "d3": "~3.4.1"
+  }
+}
