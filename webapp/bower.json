@@ -1,0 +1,10 @@
+{
+  "name": "webapp",
+  "private": true,
+  "dependencies": {
+    "underscore": "~1.5.2",
+    "d3": "~3.4.1",
+    "zopamico": "../"
+  },
+  "devDependencies": {}
+}

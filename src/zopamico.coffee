@@ -29,12 +29,12 @@ class Zopamico
                 _.zip([0..list.length-1],list)
 
         pathGenerator: (d) ->
-                [ "M#{@x(d.y-d.dy)},#{@y(d.eq_x)}"
-                  "L#{@x(d.y-d.dy)},#{@y(d.eq_x+d.eq_dx)}"
-                  "L#{@x(d.y-d.dy/2)},#{@y(d.eq_x+d.eq_dx)}"
-                  "C#{@x(d.y-d.dy/3)},#{@y(d.eq_x+d.eq_dx)},#{@x(d.y-d.dy/6)},#{@y(d.x+d.dx)},#{@x(d.y)},#{@y(d.x+d.dx)}"
-                  "L#{@x(d.y)},#{@y(d.x)}"
-                  "C#{@x(d.y-d.dy/6)},#{@y(d.x)},#{@x(d.y-d.dy/3)},#{@y(d.eq_x)},#{@x(d.y-d.dy/2)},#{@y(d.eq_x)}"
+                [ "M#{@x(d.y)},#{@y(d.eq_x)}"
+                  "L#{@x(d.y)},#{@y(d.eq_x+d.eq_dx)}"
+                  "L#{@x(d.y+d.dy/2)},#{@y(d.eq_x+d.eq_dx)}"
+                  "C#{@x(d.y+5*d.dy/6)},#{@y(d.eq_x+d.eq_dx)},#{@x(d.y+2*d.dy/3)},#{@y(d.x+d.dx)},#{@x(d.y+d.dy)},#{@y(d.x+d.dx)}"
+                  "L#{@x(d.y+d.dy)},#{@y(d.x)}"
+                  "C#{@x(d.y+2*d.dy/3)},#{@y(d.x)},#{@x(d.y+5*d.dy/6)},#{@y(d.eq_x)},#{@x(d.y+d.dy/2)},#{@y(d.eq_x)}"
                 ].join(" ")
 
         render: ->
@@ -67,7 +67,7 @@ class Zopamico
                         .style("stroke-width","0.5")
 
                 @g.append("svg:text")
-                        .attr("x", (d) => @x(d.y-d.dy))
+                        .attr("x", (d) => @x(d.y))
                         .attr("y", (d) => @y(d.eq_x + d.eq_dx*0.5) ) 
                         .attr("dy", ".35em")
                         .style("opacity", (d) => if Math.abs(@y(d.eq_dx) - @y(0)) > 9 then 1 else Math.abs(@y(d.eq_dx) - @y(0))/9)
