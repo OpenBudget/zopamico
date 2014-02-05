@@ -4,7 +4,11 @@
   "dependencies": {
     "underscore": "~1.5.2",
     "d3": "~3.4.1",
-    "zopamico": "../#gh-pages"
+    "zopamico": "../#gh-pages",
+    "jquery": "~2.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {},
+  "resolutions": {
+    "jquery": ">= 1.9.0"
+  }
 }

@@ -1,11 +1,28 @@
 class Zopamico
-        constructor: (records, fields, value) ->
+
+        MAXFONTSIZE = 20
+
+        constructor: (element, records, fields, value) ->
+                @el = element
                 @tree = { children: @buildTree(records, fields, value)  }
                 @partition = d3.layout.partition()
                 @partition.comparator = null
                 @nodes = @partition.nodes(@tree)
                 @links = @partition.links(@nodes)
                 @enumerateDescendants(@tree)
+
+                @selectedColumns = []
+                @setState()
+
+                @isInit = false
+
+        columnType: (d) ->
+                if d.depth == @selectedColumns.length
+                        "tip"
+                else if d.depth < @selectedColumns.length
+                        "miller"
+                else
+                        "partition"
         
         buildTree: (records, fields, value) ->
                 field = fields[0]
@@ -29,51 +46,84 @@ class Zopamico
                 _.zip([0..list.length-1],list)
 
         pathGenerator: (d) ->
-                [ "M#{@x(d.y)},#{@y(d.eq_x)}"
-                  "L#{@x(d.y)},#{@y(d.eq_x+d.eq_dx)}"
-                  "L#{@x(d.y+d.dy/2)},#{@y(d.eq_x+d.eq_dx)}"
-                  "C#{@x(d.y+5*d.dy/6)},#{@y(d.eq_x+d.eq_dx)},#{@x(d.y+2*d.dy/3)},#{@y(d.x+d.dx)},#{@x(d.y+d.dy)},#{@y(d.x+d.dx)}"
+                [ "M#{@x(d.y)},#{@y(d.r_x)}"
+                  "L#{@x(d.y)},#{@y(d.r_x+d.r_dx)}"
+                  "L#{@x(d.y+d.dy/2)},#{@y(d.r_x+d.r_dx)}"
+                  "C#{@x(d.y+5*d.dy/6)},#{@y(d.r_x+d.r_dx)},#{@x(d.y+2*d.dy/3)},#{@y(d.x+d.dx)},#{@x(d.y+d.dy)},#{@y(d.x+d.dx)}"
                   "L#{@x(d.y+d.dy)},#{@y(d.x)}"
-                  "C#{@x(d.y+2*d.dy/3)},#{@y(d.x)},#{@x(d.y+5*d.dy/6)},#{@y(d.eq_x)},#{@x(d.y+d.dy/2)},#{@y(d.eq_x)}"
+                  "C#{@x(d.y+2*d.dy/3)},#{@y(d.x)},#{@x(d.y+5*d.dy/6)},#{@y(d.r_x)},#{@x(d.y+d.dy/2)},#{@y(d.r_x)}"
                 ].join(" ")
 
-        render: ->
-                @w = 1000
-                @h = 600
-                @x = d3.scale.linear().range([@w, 0])
-                @y = d3.scale.linear().range([0, @h])
-
-                @vis = d3.select("body")
-                             .append("div")
-                                .attr("class", "chart")
-                                .style("width", @w + "px")
-                                .style("height", @h + "px")
+        renderFirst: ->
+                @vis = d3.select(@el)
                              .append("svg:svg")
-                                .attr("width", @w)
-                                .attr("height", @h)
+                                .attr("width", "100%")
+                                .attr("height", "100%")
 
-                @g = @vis.selectAll("g")
+                g = @vis.selectAll("g")
                         .data(@nodes)
                         .enter().append("svg:g")
-                
-                @kx = Math.abs(@x(@tree.dx)-@x(0))
-                @ky = @y(1)-@y(0)
-                console.log "Ks",@kx,@ky
 
-                @g.append("svg:path")
-                        .attr("d", (d) => @pathGenerator(d))
+                g.append("svg:path")
+                        .attr("class", "item-path")
                         .style("fill", "none")
                         .style("stroke","#888888")
                         .style("stroke-width","0.5")
 
-                @g.append("svg:text")
-                        .attr("x", (d) => @x(d.y))
-                        .attr("y", (d) => @y(d.eq_x + d.eq_dx*0.5) ) 
+                g.append("svg:text")
+                        .attr("class", "item-text")
                         .attr("dy", ".35em")
-                        .style("opacity", (d) => if Math.abs(@y(d.eq_dx) - @y(0)) > 9 then 1 else Math.abs(@y(d.eq_dx) - @y(0))/9)
-                        .style("font-size",(d) => if Math.abs(@y(d.eq_dx) - @y(0)) > 9 then 9 else Math.abs(@y(d.eq_dx) - @y(0)))
-                        .text((d) -> d.name)
                         .style('text-anchor','end')
+
+        render: ->
+                if not @isInit
+                        @renderFirst()
+                        @isInit = true
+                
+                @w = $(@el).width()
+                @h = $(@el).height()
+                @x = d3.scale.linear().domain([@tree.dy,1]).range([@w, 0])
+                @y = d3.scale.linear().range([0, @h])
+
+                @kx = Math.abs(@x(@tree.dx)-@x(0))
+                @ky = @y(1)-@y(0)
+
+                @vis.selectAll(".item-path")
+                        .call(@pathStyles)
+
+                @vis.selectAll(".item-text")
+                        .call(@textStyles)
+
+        pathStyles: (s) =>
+                s.attr("d", (d) => @pathGenerator(d))
+                 
+        textStyles: (s) =>
+                s.attr("x", (d) => @x(d.y))
+                 .attr("y", (d) => @y(d.r_x + d.r_dx*0.5) ) 
+                 .style("opacity", (d) => if Math.abs(@y(d.r_dx) - @y(0)) > MAXFONTSIZE then 1 else Math.abs(@y(d.r_dx) - @y(0))/MAXFONTSIZE)
+                 .style("font-size",(d) => if Math.abs(@y(d.r_dx) - @y(0)) > MAXFONTSIZE then MAXFONTSIZE else Math.abs(@y(d.r_dx) - @y(0)))
+                 .text((d) -> d.name)
+
+        setState: ->
+                _.each(@nodes, (d) =>
+                        if @columnType(d) == "partition"
+                                d.r_x = d.x
+                                d.r_dx = d.dx
+                        else
+                                d.r_x = d.eq_x
+                                d.r_dx = d.eq_dx
+                        )
+
+
+        transition: ->
+                @vis.selectAll(".item-path")
+                        .transition()
+                        .duration(10000)
+                        .call(@pathStyles)
+                @vis.selectAll(".item-text")
+                        .transition()
+                        .duration(10000)
+                        .call(@textStyles)
 
 
 #   d3.select(window)

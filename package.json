@@ -10,6 +10,7 @@
     "grunt-contrib-coffee": "*",
     "grunt-contrib-uglify": "*",
     "matchdep": "*",
-    "grunt-mocha-test": "*"
+    "grunt-mocha-test": "*",
+    "grunt-contrib-watch": "~0.5.2"
   }
 }
