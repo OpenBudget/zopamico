@@ -17,14 +17,14 @@ for l in csv.reader(file("../obudget-gae/data/budget/new_2012/execution2012.csv"
         continue
     l[18] = toInt(l[18])
     l[11] = toInt(l[11])
-    if l[18] == 0:
+    if l[18] <= 0:
         continue
     out.append( {'l1':l[1]+":"+l[2],
                  'l2':l[3].split('-')[-1]+":"+l[4],
                  'l3':l[5].split('-')[-1]+":"+l[6],
                  'l4':l[7].split('-')[-1]+":"+l[8],
                  "value":l[18],
-                 "color":1.0*l[18]/l[11] - 1.0 if l[11] != 0 else 0,
+                 "ref":l[11],
              } )
     
 outfile = file('budget2012.json','w')

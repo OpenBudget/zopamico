@@ -73,15 +73,16 @@ class Zopamico
                 cb = (node) ->
                         if node.children?
                                 sumvalues = 0
-                                sumcolors = 0
+                                sumrefs = 0
                                 for child in node.children
-                                        if child.color?
-                                                sumvalues += child.value
-                                                sumcolors += child.value*child.color
+                                        sumvalues += child.value
+                                        sumrefs += child.ref
                                 node.value = sumvalues
-                                node.color = if sumvalues > 0 then sumcolors / sumvalues else 0
+                                node.ref = sumrefs
+                                node.color = sumvalues / sumrefs - 1.0
                         else
-                                node.color = node.src.color
+                                node.color = node.src.value / node.src.ref - 1.0
+                                node.ref = node.src.ref
                 @traverseTree(node,cb,100,false)
                 console.log 'colorize',node
 
@@ -113,8 +114,19 @@ class Zopamico
 
         setScales: ->
                 @x = d3.scale.linear().domain([@selectedNode.y+@selectedNode.dy,@selectedNode.y+@selectedNode.dy*(@numColumns+1)]).range([@w, 0])
-                @y = d3.scale.linear().domain([@selectedNode.x,@selectedNode.x+@selectedNode.dx]).range([0, @h])
-                if @selectedChild >= 0
+                childrenInView = (@h / 20)
+                offset = 0
+                zoom = 1
+                if childrenInView < @selectedNode.children.length
+                        zoom = childrenInView / @selectedNode.children.length
+                        if @selectedChild >= childrenInView / 2
+                                if @selectedChild <= @selectedNode.children.length - childrenInView/2
+                                        offset = (@selectedChild - childrenInView/2) / @selectedNode.children.length
+                                else
+                                        offset = 1 - childrenInView / @selectedNode.children.length
+                        
+                @y = d3.scale.linear().domain([@selectedNode.x+@selectedNode.dx*offset,@selectedNode.x+@selectedNode.dx*(offset+zoom)]).range([0, @h])
+                if @selectedChild >= 0 and @selectedNode.children[@selectedChild].children?
                         child = @selectedNode.children[@selectedChild]
                         top = child.x
                         if @selectedChild != 0
@@ -163,7 +175,7 @@ class Zopamico
                 @setScales()
 
                 @vis.selectAll(".item-path")
-                        .style("fill", (d) => if @isSelected(d) then "#0074D9" else "white")#@colorScale(d.color))
+                        .style("fill", (d) => if @isSelected(d) then "#0074D9" else @colorScale(d.color))
                         .transition()
                         .duration(1000)
                         .call(@pathStyles)
@@ -191,13 +203,14 @@ class Zopamico
                  .style("font-size",(d) => if Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0)) > MAXFONTSIZE then MAXFONTSIZE else Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0)))
                  .text((d) -> d.name)
 
-        click: (selectedNode) =>
-                if selectedNode.parent != @selectedNode and @selectedNode?
-                        return
-                if selectedNode.index != @selectedChild
-                        @selectedChild=selectedNode.index
+        click: (clickedNode) =>
+                if clickedNode.parent != @selectedNode
+                        @selectedNode = clickedNode.parent
+                        @selectedChild = clickedNode.index
+                else if clickedNode.index != @selectedChild
+                        @selectedChild=clickedNode.index
                 else
-                        @selectedNode=selectedNode
+                        @selectedNode=clickedNode
                         @selectedChild=-1
                 @applyState()
 
