@@ -136,7 +136,7 @@ class Zopamico
                                 bottom += child.dx*0.2
                         @y2 = d3.scale.linear().domain([top,bottom]).range([0, @h])
                 else
-                        @y2 = @y
+                        @y2 = d3.scale.linear().domain([@selectedNode.x,@selectedNode.x+@selectedNode.dx]).range([0, @h])
               
         render: ->
                 console.log 'visibleNodes',@visibleNodes.length              
