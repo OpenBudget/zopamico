@@ -169,6 +169,7 @@ class Zopamico
                         .attr("class", "item-text")
                         .attr("dy", ".35em")
                         .style('text-anchor','end')
+                        .on("click",(d) => @click(d))
                         .call(@textStyles)
                         .style("opacity",0)
 
