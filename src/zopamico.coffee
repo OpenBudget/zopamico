@@ -1,346 +1,289 @@
 class Zopamico
 
-        # Text sizes
-        MAX_FONT_SIZE = 30
-        MIN_FONT_SIZE = 20
-        MARGIN = 0.1
+  TIP_WIDTH = 400
+  STACK_WIDTH = 30
+  TIP_HEIGHT = 50
 
-        # Column Types
-        COLUMN_TYPE_BREADCRUMB = 0
-        COLUMN_TYPE_TIP        = 1
-        COLUMN_TYPE_PARTITION  = 2
-        COLUMN_TYPE_INVISIBLE  = 3
+  constructor: (element, dataFetcher) ->
+    console.log 'ctor'
+    @el = element
+    @vis = d3.select(@el)
+            .append("svg:svg")
+            .attr("width", "100%")
+            .attr("height", "100%")
+    @w = $(@el).width()
+    @h = $(@el).height()
 
-        # Column widths
-        BREADCRUMB_COLUMN_WIDTH = 24
-        TIP_COLUMN_WIDTH = 300
+    @slider = @vis.append('svg:g')
+                  .attr('class','slider')
+    @slider.append('line')
+           .attr('x1',0)
+           .attr('y1',0)
+           .attr('x2',0)
+           .attr('y2',@h)
+           .style('stroke-width',1)
+           .style('stroke','#888')
+    handle = @slider.append('rect')
+                    .attr('class','slider-handle')
+                    .attr('x',-5)
+                    .attr('y',0)
+                    .attr('width',10)
+                    .attr('height',25)
+                    .style('fill',"#400")
 
-        constructor: (element, records, fields, value) ->
-                @el = element
-                @tree = { children: @buildTree(records, fields, value)  }
-                @partition = d3.layout.partition()
-                @partition.comparator = null
-                @nodes = @partition.nodes(@tree)
-                @links = @partition.links(@nodes)
-                @tree.prefix = []
-                @id = 0
-                @enumerateDescendants(@tree)
-                @colorizeTree(@tree)
-                @numColumns = 2
-                @vis = d3.select(@el)
-                        .append("svg:svg")
-                        .attr("width", "100%")
-                        .attr("height", "100%")
-                d3.select('body')
-                        .on("keydown", () => @keyPress())
-                @colorScale = d3.scale.linear()
-                        .domain([-0.5, -0.25, -0.05, -0.001, 0, 0.001, 0.05, 0.25, 0.5])
-                        .range(["#9F7E01", "#dbae00", "#eac865","#f5dd9c","#AAA","#bfc3dc", "#9ea5c8", "#7b82c2", "#464FA1"]).clamp(true)
-                @selectedNode = @tree
-                @selectedChild = -1
-                @applyState(@tree)
+    @drag = d3.behavior.drag()
+            .on("drag",
+                (d) =>
+                  y = d3.event.y
+                  lastNodes = @nodeList[@nodeList.length - 1]
+                  max_height = @h - 25
+                  if y < 0
+                    y = 0
+                  if y > max_height
+                    y = max_height
+                  lastNodes.offset = y / max_height
+                  @render()
+    )
+    @vis.on 'mousewheel',
+            =>
+              lastNodes = @nodeList[@nodeList.length - 1]
+              lastNodes.offset += 0.001 * d3.event.wheelDelta
+              if lastNodes.offset > 1
+                  lastNodes.offset = 1
+              if lastNodes.offset < 0
+                  lastNodes.offset = 0
+              #console.log 'wheel',lastNodes.offset, d3.event
+              @render()
+    handle.call(@drag)
 
+    @x = d3.scale.linear().domain([0,@w]).range([0,@w])
+    @y = d3.scale.linear().domain([0,1]).range([0,@h])
+    @dataFetcher = dataFetcher
+    @nodeList = []
+    @fetch(null)
 
-        columnType: (d) ->
-                if d.depth == @selectedNode.depth + 1
-                        COLUMN_TYPE_TIP
-                else if d.depth <= @selectedNode.depth
-                        COLUMN_TYPE_BREADCRUMB
-                else if d.depth > @selectedNode.depth + @numColumns
-                        COLUMN_TYPE_INVISIBLE
-                else
-                        COLUMN_TYPE_PARTITION
+  fetch: (next) ->
+    console.log 'fetch'
+    # if @nodeList.length > 0
+    #   selectedNode = @nodeList[@nodeList.length - 1].selectedNode.src
+    # else
+    #   selectedNode = null
 
-        isSelected: (d) ->
-                ((d.parent == @selectedNode) && (d.index == @selectedChild)) || (d == @selectedNode) || (d.parent?.parent == @selectedNode && d.parent?.index == @selectedChild)
-                        
-        buildTree: (records, fields, value) ->
-                field = fields[0]
-                if fields.length > 1
-                        _fields = fields.slice(1)
-                        _.map(_.sortBy(_.pairs(_.groupBy(records,field)),(x)->x[0]), (x) => { name: x[0], children: @buildTree(x[1],_fields,value) })
-                else
-                        _.map(records, (x) -> { name: x[field], value: x[value], src: x } )
+    @dataFetcher(next,
+                 (nodes,getTitle,getValue,getNexts) =>
+                   @onData(nodes,getTitle,getValue,getNexts)
+                )
 
-        traverseTree: (root,cb,depth, parentFirst) ->
-                if parentFirst
-                        cb(root)
-                if root.children? and depth > 0
-                        _.each( root.children, (child) => @traverseTree(child,cb,depth-1) )
-                if not parentFirst
-                        cb(root)
-
-        enumerateDescendants: (node) ->
-                if node.children?
-                        for tuple in @enumerate(node.children)
-                                [i,child] = tuple[0..1]
-                                child.id = @id
-                                @id += 1
-                                child.index = i
-                                child.prefix = node.prefix.slice(0)
-                                child.prefix.push(i)
-                                child.numSiblings = node.children.length
-                                child.eq_dx = node.dx / node.children.length
-                                child.eq_x = node.x + node.dx * i / node.children.length
-                                @enumerateDescendants child
-
-        colorizeTree: (node) ->
-                cb = (node) ->
-                        if node.children?
-                                sumvalues = 0
-                                sumrefs = 0
-                                for child in node.children
-                                        sumvalues += child.value
-                                        sumrefs += child.ref
-                                node.value = sumvalues
-                                node.ref = sumrefs
-                                node.color = sumvalues / sumrefs - 1.0
-                        else
-                                node.color = node.src.value / node.src.ref - 1.0
-                                node.ref = node.src.ref
-                @traverseTree(node,cb,100,false)
-                console.log 'colorize',node
-
-        enumerate: (list) ->
-                _.zip([0..list.length-1],list)
-
-        pathGenerator: (d) ->
-                if @columnType(d) == COLUMN_TYPE_PARTITION
-                        ry = ly = @y2
-                else
-                        ry = @y
-                        ly = @y2
-                
-                [ "M#{@x(d.y)},#{ly(d.x)}"
-                  "M#{@x(d.y)},#{ly(d.x+d.dx)}"
-                  "L#{@x(d.y+d.dy/10)},#{ry(d.r_x+d.r_dx)}"
-                  "L#{@x(d.y+d.dy*9/10)},#{ry(d.r_x+d.r_dx)}"
-                  "L#{@x(d.y+d.dy)},#{ly(d.x+d.dx)}"
-                  "L#{@x(d.y+d.dy)},#{ly(d.x)}"
-                  "L#{@x(d.y+d.dy*9/10)},#{ry(d.r_x)}"
-                  "L#{@x(d.y+d.dy/10)},#{ry(d.r_x)}"
-                  "L#{@x(d.y)},#{ly(d.x)}"
-                ].join(" ")
-                # [ "M#{@x(d.y)},#{ry(d.r_x)}"
-                #   "L#{@x(d.y)},#{ry(d.r_x+d.r_dx)}"
-                #   "L#{@x(d.y+d.dy/6)},#{ry(d.r_x+d.r_dx)}"
-                #   "C#{@x(d.y+7*d.dy/9)},#{ry(d.r_x+d.r_dx)},#{@x(d.y+5*d.dy/9)},#{(ly(d.x+d.dx)+ry(d.r_x+d.r_dx))/2},#{@x(d.y+d.dy)},#{ly(d.x+d.dx)}"
-                #   "L#{@x(d.y+d.dy)},#{ly(d.x)}"
-                #   "C#{@x(d.y+5*d.dy/9)},#{(ly(d.x)+ry(d.r_x))/2},#{@x(d.y+7*d.dy/9)},#{ry(d.r_x)},#{@x(d.y+d.dy/6)},#{ry(d.r_x)}"
-                #   "L#{@x(d.y)},#{ry(d.r_x)}"
-                # ].join(" ")
-                #[ "M#{@x(d.y)},#{ry(d.r_x)}"
-                #  "L#{@x(d.y)},#{ry(d.r_x+d.r_dx)}"
-                #  "L#{@x(d.y+d.dy/2)},#{ry(d.r_x+d.r_dx)}"
-                #  "C#{@x(d.y+5*d.dy/6)},#{ry(d.r_x+d.r_dx)},#{@x(d.y+2*d.dy/3)},#{ly(d.x+d.dx)},#{@x(d.y+d.dy)},#{ly(d.x+d.dx)}"
-                #  "L#{@x(d.y+d.dy)},#{ly(d.x)}"
-                #  "C#{@x(d.y+2*d.dy/3)},#{ly(d.x)},#{@x(d.y+5*d.dy/6)},#{ry(d.r_x)},#{@x(d.y+d.dy/2)},#{ry(d.r_x)}"
-                #].join(" ")
-
-        setScales: ->
-                @x = d3.scale.linear().domain([0,1]).range([@w, 0])
-                ## Calculate zoom for right side
-                childrenInView = (@h / MIN_FONT_SIZE)
-                offset = 0
-                zoom = 1
-                if childrenInView < @selectedNode.children.length
-                        zoom = childrenInView / @selectedNode.children.length
-                        if @selectedChild >= childrenInView / 2
-                                if @selectedChild <= @selectedNode.children.length - childrenInView/2
-                                        offset = (@selectedChild - childrenInView/2) / @selectedNode.children.length
-                                else
-                                        offset = 1 - childrenInView / @selectedNode.children.length                      
-                @y = d3.scale.linear().domain([@selectedNode.x+@selectedNode.dx*offset,@selectedNode.x+@selectedNode.dx*(offset+zoom)]).range([0, @h])
-                
-                ## Calculate zoom for left side
-                if @selectedChild >= 0 and @selectedNode.children[@selectedChild].children?
-                        ## A child is selected
-                        @y2 = d3.scale.linear().domain([@selectedNode.x,@selectedNode.x+@selectedNode.dx]).range([0, @h]).clamp(false)
-
-                        child = @selectedNode.children[@selectedChild]
-                        lastGrandchild = child.children[child.children.length-1]
-
-                        currentPixels = Math.abs(@y2(child.x) - @y2(child.x + child.dx))
-                        neededPixels = child.dx / lastGrandchild.dx * MIN_FONT_SIZE
-
-                        if neededPixels > currentPixels
-                                if neededPixels > @h*(1-2*MARGIN)
-                                        neededPixels = @h*(1-2*MARGIN)
-                        else
-                                neededPixels = currentPixels
-                        zoom = neededPixels / currentPixels
-                        zoomFocal = child.x + child.dx / 2
-
-                        # domain
-                        margin = (1+(MARGIN/(1-2*MARGIN)))
-                        d_top = zoomFocal-child.dx/2*margin
-                        d_bottom = zoomFocal+child.dx/2*margin
-                        if d_top < 0.0
-                                d_bottom -= (d_top - 0.0)
-                                d_top = 0.0
-                        if d_bottom > 1.0
-                                d_top -= d_bottom - 1.0
-                                d_bottom = 1.0
-
-                        # range
-                        r_top = zoomFocal-child.dx/2*zoom*margin
-                        r_bottom = zoomFocal+child.dx/2*zoom*margin
-                        if r_top < 0.0
-                                r_bottom -= (r_top - 0.0)
-                                r_top = 0.0
-                        if r_bottom > 1.0
-                                r_top -= r_bottom - 1.0
-                                r_bottom = 1.0
-                        r_top = @y2(r_top)
-                        r_bottom = @y2(r_bottom)
-                        @y2 = d3.scale.linear().domain([d_top,d_bottom]).range([r_top, r_bottom]).clamp(false)
-                else
-                        #pass
-                ## No child is selected - zoom to the entire range of children
-                @y2 = d3.scale.linear().domain([@selectedNode.x,@selectedNode.x+@selectedNode.dx]).range([0, @h])
-              
-        render: ->
-                console.log 'visibleNodes',@visibleNodes.length              
-                g = @vis.selectAll("g")
-                        .data(@visibleNodes, (d) -> d.id)
-
-                @w = $(@el).width()
-                @h = $(@el).height()
-                if not @x?
-                        @setScales()
-
-                oldNodes = g.exit()
-                console.log 'oldNodes',oldNodes
-                oldNodes.transition()
-                        .duration(1000)
-                        .remove()
-
-                newNodes = g.enter().append("svg:g")
-
-                newNodes.append("svg:path")
-                        .attr("class", "item-path")
-                        .style("fill", "none")
-                        .style("stroke","#888888")
-                        .style("stroke-width","0.5")
-                        .on("click",(d) => @click(d))
-                        .call(@pathStyles)
-                        .style("opacity",0)
-
-                newNodes.append("svg:text")
-                        .attr("class", "item-text")
-                        .attr("dy", ".35em")
-                        .style('text-anchor','middle')
-                        .on("click",(d) => @click(d))
-                        .call(@textStyles)
-                        .style("opacity",0)
-
-                @setScales()
-
-                @vis.selectAll(".item-path")
-                        .style("fill", (d) => if @isSelected(d) then "#0074D9" else d3.hsl(@colorScale(d.color)).brighter(0.5))
-                        .style("stroke-width", (d) => if @isSelected(d) then 2 else 0.5)
-                        .style("stroke", (d) => if @isSelected(d) then "#0074D9" else @colorScale(d.color))
-                        .transition()
-                        .duration(1000)
-                        .call(@pathStyles)
-                @vis.selectAll(".item-text")
-                        .style("fill", (d) => if @isSelected(d) then "white" else "black")#@colorScale(d.color))
-                        .transition()
-                        .duration(1000)
-                        .call(@textStyles)
-
-
-        scaleFor: (d) ->
-                if @columnType(d) == COLUMN_TYPE_PARTITION
-                        @y2
-                else
-                        @y
-
-        pathStyles: (s) =>
-                s.attr("d", (d) => @pathGenerator(d))
-                 .style("opacity",1)
-                
-        textStyles: (s) =>
-                s.attr("x", (d) => @x(d.y+d.dy/2))
-                 .attr("y", (d) => @scaleFor(d)(d.r_x + d.r_dx*0.5))
-                 .style("opacity", 1)#(d) => if Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0)) > MAX_FONT_SIZE then 1 else Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0))/MAX_FONT_SIZE)
-                 .style("font-size",(d) => if Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0)) > MAX_FONT_SIZE then MAX_FONT_SIZE else Math.abs(@scaleFor(d)(d.r_dx) - @scaleFor(d)(0)))
-                 .attr("transform",(d) => if @columnType(d) == COLUMN_TYPE_BREADCRUMB then "rotate(90,#{@x(d.y+d.dy/2)},#{@scaleFor(d)(d.r_x + d.r_dx*0.5)})" else "")
-                 .text((d) -> d.name)
-
-        click: (clickedNode) =>
-                if clickedNode.parent != @selectedNode
-                        @selectedNode = clickedNode.parent
-                        @selectedChild = clickedNode.index
-                else if clickedNode.index != @selectedChild
-                        @selectedChild=clickedNode.index
-                else
-                        @selectedNode=clickedNode
-                        @selectedChild=-1
-                @applyState()
-
-        keyPress: () =>
-                keyCode = d3.event.keyCode
-                console.log 'keyCode', keyCode
-                if keyCode == 38 #up
-                        if @selectedChild==-1 or @selectedChild==0
-                                @selectedChild=@selectedNode.children.length-1
-                        else
-                                @selectedChild-=1
-                if keyCode == 40 #down
-                        if @selectedChild==-1 or @selectedChild==@selectedNode.children.length-1
-                                @selectedChild=0
-                        else
-                                @selectedChild+=1
-                if keyCode == 37 #left
-                        if @selectedChild==-1
-                                @selectedChild=0
-                        else
-                                if @selectedNode.children?
-                                        @selectedNode=@selectedNode.children[@selectedChild]
-                                        @selectedChild=-1
-                if keyCode == 39 #right
-                        if @selectedChild==-1
-                                if @selectedNode.parent?
-                                        @selectedChild=@selectedNode.index
-                                        @selectedNode=@selectedNode.parent
-                        else
-                                @selectedChild=-1
-                @applyState()
-                
-        applyState: () =>
-                @w = $(@el).width()
-                @h = $(@el).height()
-                breadcrumbColumnWidth = BREADCRUMB_COLUMN_WIDTH / @w
-                tipColumnWidth = TIP_COLUMN_WIDTH / @w
-                currentDepth = @selectedNode.depth
-                restWidth = 1.0 - tipColumnWidth - breadcrumbColumnWidth * currentDepth
-                console.log "widths:",@w,breadcrumbColumnWidth,tipColumnWidth,restWidth,currentDepth
-                _.each(@nodes, (d) =>
-                        d.columnType = @columnType(d)
-                        if d.depth <= currentDepth
-                                d.y = breadcrumbColumnWidth*d.depth
-                                d.dy = breadcrumbColumnWidth
-                        else if d.depth == currentDepth + 1
-                                d.y = breadcrumbColumnWidth*d.depth
-                                d.dy = tipColumnWidth
-                        else
-                                d.y = breadcrumbColumnWidth*(currentDepth+1) + tipColumnWidth
-                                d.dy = restWidth
-                        if @columnType(d) == COLUMN_TYPE_PARTITION
-                                d.r_x = d.x
-                                d.r_dx = d.dx
-                        else
-                                d.r_x = d.eq_x
-                                d.r_dx = d.eq_dx
+  processData: (nodes,getTitle,getValue,getNexts) ->
+    console.log getValue, getNexts
+    nodes = _.map( nodes,
+                   (node) =>
+                     title: getTitle(node)
+                     value: getValue(node)
+                     nexts: _.map( _.pairs(getNexts(node)),
+                                   (d) -> {name:d[0], target:d[1]} )
+                     level: @nodeList.length
+                     src: node
+                  )
+    nodes = _.sortBy(nodes, (x) -> -x.value )
+    sum = _.reduce( nodes,
+                    (m,n) ->
+                      m + n.value
+                    ,0 )
+    _.reduce( nodes,
+              (m,n) ->
+                n.index = m
+                m + 1
+              ,0 )
+    _.reduce( nodes,
+              (m,n) ->
+                n.y = m / sum
+                n.dy = n.value / sum
+                m + n.value
+              ,0 )
+    _.each( nodes,
+               (n) ->
+                 _.each( n.nexts,
+                         (x) -> x.src = n
                         )
-                @visibleNodes = []
-                @traverseTree( @selectedNode, ((d) => @visibleNodes.push(d)), @numColumns, true )
-                parent = @selectedNode.parent
-                while parent?
-                        @visibleNodes.push parent
-                        parent = parent.parent
+              )
+    console.log "processData: nodes=",nodes
+    return nodes
+
+  onData: (nodes,getTitle,getValue,getNexts) =>
+    console.log 'onData',nodes
+    nodes = @processData( nodes, getTitle, getValue, getNexts )
+    pack =
+        nodes: nodes
+        selectedNode: nodes[0]
+        offset: 0
+
+    @nodeList.push( pack )
+    @render()
+
+  selectNodes: ->
+    @nodes = []
+    for i in [0..@nodeList.length - 2]
+      if i < 0
+        continue
+      #console.log "selectNodes: nodes", i, @nodeList[i]
+      @nodes.push( @nodeList[i].selectedNode )
+    pack = @nodeList[@nodeList.length - 1]
+    for i in [0..pack.nodes.length - 1]
+      @nodes.push( pack.nodes[i] )
+
+  pathGenerator: (y,dy,cy,dcy,x,dx) ->
+    MID_POINT = 0.25
+    BEZ_POINT = 0.7
+    mid1 = x + dx * MID_POINT
+    mid2 = x + dx * (1 - MID_POINT)
+    bez_1_1 = x * (1 - BEZ_POINT) + mid1 * BEZ_POINT
+    bez_1_2 = x * BEZ_POINT + mid1 * (1 - BEZ_POINT)
+    bez_2_1 = mid2 * (1 - BEZ_POINT) + (x + dx) * BEZ_POINT
+    bez_2_2 = mid2 * BEZ_POINT + (x + dx) * (1 - BEZ_POINT)
+
+    [ "M#{x},#{y}"
+      "M#{x},#{y+dy}"
+      "C#{bez_1_1},#{y+dy},#{bez_1_2},#{cy+dcy},#{mid1},#{cy+dcy}"
+      "L#{mid2},#{cy+dcy}"
+      "C#{bez_2_1},#{cy+dcy},#{bez_2_2},#{y+dy},#{x+dx},#{y+dy}"
+      "M#{x+dx},#{y}"
+      "C#{bez_2_2},#{y},#{bez_2_1},#{cy},#{mid2},#{cy}"
+      "L#{mid1},#{cy}"
+      "C#{bez_1_2},#{cy},#{bez_1_1},#{y},#{x},#{y}"
+    ].join(" ")
+
+  render: ->
+    @selectNodes()
+    _stackNodes = _.filter( @nodes, (x) => x.level < @nodeList.length - 1 )
+    _tipNodes = _.filter( @nodes, (x) => x.level == @nodeList.length - 1 )
+    lastNodes = @nodeList[@nodeList.length - 1]
+    selected = lastNodes.selectedNode
+    nexts = if selected? then selected.nexts else []
+    offset = lastNodes.offset
+
+    max_offset = lastNodes.nodes.length * TIP_HEIGHT - @h
+    if max_offset < 0
+      max_offset = 0
+    rectsOffset = -offset * max_offset
+    sliderOffset = offset * (@h - 25)
+
+    # TIP nodes
+    tipNodes = @vis.selectAll(".tip-node")
+                   .data(_tipNodes, (d) -> "#{d.level}/#{d.title}")
+    newTipNodes = tipNodes.enter()
+                          .append('svg:g')
+                          .attr("class","tip-node")
+
+    ## Partition view
+    newTipNodes
+        .append('svg:path')
+          .attr('class','partition-view')
+          .style("stroke-width",1)
+          .style("fill","none")
+    tipNodes.selectAll('.partition-view')
+          .attr("d", (d) => @pathGenerator(@y(d.y),
+                                           @y(d.dy),
+                                           rectsOffset + (d.index * TIP_HEIGHT),
+                                           TIP_HEIGHT,
+                                           @x(d.level * STACK_WIDTH),TIP_WIDTH))
+          .style("stroke",(d) -> if d == selected then "#444" else "#ccc")
+          .style("opacity",(d) -> if d == selected then 1 else 0.2)
+
+    ## Miller rect
+    newTipNodes
+        .append('svg:rect')
+          .attr('class','miller-rect')
+          .attr("x", (d) => @x((d.level * STACK_WIDTH)))
+          .attr("width",TIP_WIDTH)
+          .attr("height", TIP_HEIGHT)
+          .style("stroke","#800")
+          .style("stroke-width",1)
+          .style("fill","#000")
+          .style("opacity","0")
+          .on("mouseenter",
+              (d) =>
+                #console.log "hover",d
+                @nodeList[@nodeList.length - 1].selectedNode = d
                 @render()
+           )
+    tipNodes.selectAll('.miller-rect')
+          .attr("y", (d) -> rectsOffset + (d.index * TIP_HEIGHT))
+
+    ## Miller text
+    newTipNodes
+        .append('svg:text')
+        .attr('class','miller-text')
+        .attr("x", (d) => @x((d.level * STACK_WIDTH) + TIP_WIDTH / 2))
+        .attr("dx", 20)
+        .attr("dy", 20)
+        .style('text-anchor','middle')
+        .text((d) -> d.title)
+    tipNodes.selectAll('.miller-text')
+        .attr("y", (d) -> rectsOffset + (d.index * TIP_HEIGHT))
+    tipNodes.exit().remove()
+
+    # NEXTS
+    nextLinks = @vis.selectAll(".nexts")
+                    .data(nexts, (d) -> "#{d.name}/#{d.src.value}/#{d.src.title}")
+    nextLinks.enter()
+             .append("svg:text")
+             .attr("class","nexts")
+             .attr("x", (d,i) => @x((d.src.level * STACK_WIDTH) + TIP_WIDTH * 0.7 - 100 * i))
+             .attr("dx", 20)
+             .attr("dy", 40)
+             .style('text-anchor','end')
+             .style('cursor','hand')
+             .text((d) -> d.name)
+             .on("click",
+                 (d) =>
+                   console.log "click",d
+                   @fetch(d)
+                )
+    nextLinks.exit().remove()
+    nextLinks
+        .attr("y", (d) -> rectsOffset + (d.src.index * TIP_HEIGHT))
+
+
+    # STACK nodes
+    stackNodes = @vis.selectAll(".stack-node")
+                    .data(_stackNodes)
+    newStackNodes = stackNodes.enter()
+                              .append('svg:g')
+                              .attr("class",'stack-node')
+    newStackNodes
+        .append('svg:rect')
+        .attr("x", (d) => @x(d.level * STACK_WIDTH))
+        .attr("y", 0)
+        .attr("width", STACK_WIDTH)
+        .attr("height", @h)
+        .style("stroke","#000")
+        .style("stroke-width",1)
+        .style("fill","#fff")
+        .on("click",
+            (d) =>
+              console.log "stack click",d
+              @nodeList = @nodeList[0..d.level]
+              @render()
+           )
+    newStackNodes
+        .append('svg:text')
+        .attr("x", 0)
+        .attr("y", (d) => -@x((d.level * STACK_WIDTH)))
+        .attr("dx", 20)
+        .attr("dy", -STACK_WIDTH / 2)
+        .attr("transform","rotate(90)")
+        .text((d) -> d.title)
+    stackNodes.exit().remove()
+
+    # SLIDER
+    d3.select('.slider')
+      .attr('transform',
+            "translate(#{_stackNodes.length * STACK_WIDTH + TIP_WIDTH+10},0)")
+    d3.select('.slider-handle')
+      .attr('transform',
+            "translate(0,#{sliderOffset})")
+    #console.log 'slider',_stackNodes.length * STACK_WIDTH + TIP_WIDTH
 
 
 root = exports ? window

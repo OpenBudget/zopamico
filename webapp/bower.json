@@ -5,7 +5,8 @@
     "underscore": "~1.5.2",
     "d3": "~3.4.1",
     "zopamico": "../#gh-pages",
-    "jquery": "~2.1.0"
+    "jquery": "~2.1.0",
+    "jquery-mousewheel": "~3.1.11"
   },
   "devDependencies": {},
   "resolutions": {
