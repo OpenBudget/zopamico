@@ -10,6 +10,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.title; },
                 function(n) { return n.net_allocated; },
+                function(n) { return "סעיף תקציבי "+n.code+"<br/><strong>"+n.title+"</strong>";},
                 function(n) { return { 'תקנות': {'kind': 'budget6', 'prefix': n.code} }; }
             );
         },"jsonp");
@@ -21,6 +22,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.title; },
                 function(n) { return n.net_allocated; },
+                function(n) { return "סעיף תקציבי "+n.code+"<br/><strong>"+n.title+"</strong>";},
                 function(n) { return { 'תמיכות לפי שנה': {'kind': 'supports-by-year', 'prefix': n.code.substring(2) },
                                        'תמיכות לפי ארגון': {'kind': 'supports-by-org', 'prefix': n.code.substring(2) },
                              }; }
@@ -38,6 +40,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.year; },
                 function(n) { return n.value; },
+                function(n) { return "תמיכות מתוך סעיף תקציבי "+code+"<br/><strong>"+n.value+"ש״ח אושרו </strong> בשנת "+n.year;},
                 function(n) { return { 'פירוט ארגונים': {'kind': 'supports-by-year-detail', 'year': n.year, 'code': code } }; }
             );
         },"jsonp");
@@ -53,6 +56,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.recipient; },
                 function(n) { return n.value; },
+                function(n) { return "תמיכות מתוך סעיף תקציבי "+code+"<br/><strong>"+n.value+"ש״ח אושרו </strong> עבור "+n.recipient;},
                 function(n) { return { 'פירוט שנים': {'kind': 'supports-by-org-detail', 'recipient': n.recipient, 'code': code } }; }
             );
         },"jsonp");
@@ -65,6 +69,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.recipient; },
                 function(n) { return n.amount_allocated; },
+                function(n) { return "תמיכות מתוך סעיף תקציבי "+code+"<br/>בשנת "+n.year+" <strong>"+n.amount_allocated+" ש״ח אושרו </strong> עבור "+n.recipient;},
                 function(n) { return {}; }
             );
         },"jsonp");
@@ -77,6 +82,7 @@ function dataFetcher( node, cb ) {
             cb( data,
                 function(n) { return n.year; },
                 function(n) { return n.amount_allocated; },
+                function(n) { return "תמיכות מתוך סעיף תקציבי "+code+"<br/>בשנת "+n.year+" <strong>"+n.amount_allocated+" ש״ח אושרו </strong> עבור "+n.recipient;},
                 function(n) { return {}; }
             );
         },"jsonp");
