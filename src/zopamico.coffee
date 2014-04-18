@@ -321,10 +321,9 @@ class Zopamico
                               .attr("class",'stack-node')
     newStackNodes
         .append('svg:rect')
-        .attr("x", (d) => @x(d.level * STACK_WIDTH) - @rtl * STACK_WIDTH)
+        .attr("class","stack-rect")
         .attr("y", 0)
         .attr("width", STACK_WIDTH)
-        .attr("height", @h)
         .style("stroke","#000")
         .style("stroke-width",1)
         .style("fill","#fff")
@@ -337,8 +336,8 @@ class Zopamico
            )
     newStackNodes
         .append('svg:text')
+        .attr("class","stack-text")
         .attr("x", 0)
-        .attr("y", (d) => -@x((d.level * STACK_WIDTH)) + @rtl * STACK_WIDTH)
         .attr("dx", 20)
         .attr("dy", -STACK_WIDTH / 2)
         .attr("transform","rotate(90)")
@@ -350,6 +349,11 @@ class Zopamico
                   name = ""
                 name + d.title
              )
+    stackNodes.selectAll(".stack-rect")
+              .attr("x", (d) => @x(d.level * STACK_WIDTH) - @rtl * STACK_WIDTH)
+              .attr("height", @h)
+    stackNodes.selectAll(".stack-text")
+              .attr("y", (d) => -@x((d.level * STACK_WIDTH)) + @rtl * STACK_WIDTH)
     stackNodes.exit().remove()
 
     # SLIDER
